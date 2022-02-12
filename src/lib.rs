@@ -496,7 +496,7 @@ impl<'a> Display<'a> {
                 "    u = ivec2(idx % {chunks_in_u32}, idx / {chunks_in_u32});\n"
             ))?;
             if inline_none {
-                f.write_str("int bitShift = 32 / CHUNKS_IN_U32;\n")?;
+                f.write_str("    int bitShift = 32 / CHUNKS_IN_U32;\n")?;
             }
             let rem_coef = match (inline_none, intable) {
                 (true, true) => "(1 << bitShift) - 1".to_string(),
