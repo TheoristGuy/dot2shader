@@ -1,4 +1,3 @@
-use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Formatter;
@@ -27,6 +26,7 @@ impl From<image::ImageError> for Error {
 }
 
 /// pallet display format
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum PalletFormat {
     /// U32 decimal integer format, e.g. `11596387`.
@@ -66,13 +66,17 @@ impl Default for PalletFormat {
 }
 
 /// buffer display format
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct BufferFormat {
     /// Turn the picture upside down so that the index starts at the bottom left of the picture. default: `true`
+    #[wasm_bindgen(js_name = "reverseRows")]
     pub reverse_rows: bool,
     /// Invert bytes of each chunk. default: `true`
+    #[wasm_bindgen(js_name = "reverseEachChunk")]
     pub reverse_each_chunk: bool,
     /// Even if the data can be compressed, the buffer will be displayed as an array without compression. default: `false`
+    #[wasm_bindgen(js_name = "forceToRaw")]
     pub force_to_raw: bool,
 }
 
@@ -86,6 +90,7 @@ impl Default for BufferFormat {
     }
 }
 
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InlineLevel {
     /// Each value has a meaningful name. There is no magic number.
@@ -103,13 +108,17 @@ impl Default for InlineLevel {
     }
 }
 
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct DisplayConfig {
     /// buffer format
+    #[wasm_bindgen(js_name = "bufferFormat")]
     pub buffer_format: BufferFormat,
     /// pallet format
+    #[wasm_bindgen(js_name = "palletFormat")]
     pub pallet_format: PalletFormat,
     /// inline level
+    #[wasm_bindgen(js_name = "inlineLevel")]
     pub inline_level: InlineLevel,
 }
 
@@ -127,8 +136,8 @@ pub struct Display<'a> {
 
 impl PixelArt {
     /// Creates Bitmap from image file.
-    pub fn from_image(image_buffer: &[u8], format: ImageFormat) -> Result<PixelArt, Error> {
-        let v = image::load_from_memory_with_format(image_buffer, format)?;
+    pub fn from_image(image_buffer: &[u8]) -> Result<PixelArt, Error> {
+        let v = image::load_from_memory(image_buffer)?;
         let size = [v.width(), v.height()];
         let v = v.into_rgba8().into_raw();
         let mut col2idx = HashMap::new();
@@ -161,7 +170,7 @@ impl PixelArt {
 
     /// necessary bit shift for represent pixel
     #[inline]
-    pub fn necessary_bit_shift(&self) -> usize {
+    fn necessary_bit_shift(&self) -> usize {
         usize::pow(
             2,
             f32::ceil(f32::log2(
@@ -170,10 +179,18 @@ impl PixelArt {
         )
     }
     #[inline]
-    pub fn is_compressible(&self) -> bool {
+    fn is_compressible(&self) -> bool {
         self.pallet.len() < usize::pow(2, 16)
     }
-    #[inline]
+}
+
+#[wasm_bindgen]
+impl PixelArt {
+    #[wasm_bindgen(js_name = "fromImage")]
+    pub fn from_image_(buffer: &[u8]) -> Option<PixelArt> {
+        PixelArt::from_image(buffer).ok()
+    }
+    #[wasm_bindgen(js_name = "swapPalletIndex")]
     pub fn swap_pallet_index(&mut self, i: u32, j: u32) {
         let color = self.pallet[i as usize];
         self.pallet[i as usize] = self.pallet[j as usize];
@@ -185,6 +202,14 @@ impl PixelArt {
                 *idx = i;
             }
         })
+    }
+    #[wasm_bindgen(js_name = "getCode")]
+    pub fn get_code(&self, config: DisplayConfig) -> String {
+        Display {
+            entity: self,
+            config,
+        }
+        .to_string()
     }
 }
 
@@ -221,22 +246,20 @@ impl std::fmt::Display for ColorDisplay {
                     true => 100.0,
                     false => 1000.0,
                 };
-                let r = (f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * unit)
-                    / unit)
+                let r = (f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * unit) / unit)
                     .to_string();
                 let r = match r.len() > 1 && space == "" {
                     true => &r[1..],
                     false => &r[0..],
                 };
-                let g = (f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * unit)
-                    / unit)
+                let g = (f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * unit) / unit)
                     .to_string();
                 let g = match g.len() > 1 && space == "" {
                     true => &g[1..],
                     false => &g[0..],
                 };
-                let b = (f32::round((self.color & 0x0000FF) as f32 / 255.0 * unit) / unit)
-                    .to_string();
+                let b =
+                    (f32::round((self.color & 0x0000FF) as f32 / 255.0 * unit) / unit).to_string();
                 let b = match b.len() > 1 && space == "" {
                     true => &b[1..],
                     false => &b[0..],
