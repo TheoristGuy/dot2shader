@@ -217,21 +217,25 @@ impl std::fmt::Display for ColorDisplay {
                 self.color & 0x0000FF
             )),
             PalletFormat::RGBFloat => {
-                let r = (f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * 1000.0)
-                    / 1000.0)
+                let unit = match space == "" {
+                    true => 100.0,
+                    false => 1000.0,
+                };
+                let r = (f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * unit)
+                    / unit)
                     .to_string();
                 let r = match r.len() > 1 && space == "" {
                     true => &r[1..],
                     false => &r[0..],
                 };
-                let g = (f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * 1000.0)
-                    / 1000.0)
+                let g = (f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * unit)
+                    / unit)
                     .to_string();
                 let g = match g.len() > 1 && space == "" {
                     true => &g[1..],
                     false => &g[0..],
                 };
-                let b = (f32::round((self.color & 0x0000FF) as f32 / 255.0 * 1000.0) / 1000.0)
+                let b = (f32::round((self.color & 0x0000FF) as f32 / 255.0 * unit) / unit)
                     .to_string();
                 let b = match b.len() > 1 && space == "" {
                     true => &b[1..],
