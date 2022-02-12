@@ -2,8 +2,9 @@ use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::io::{BufRead, Seek};
+use wasm_bindgen::prelude::wasm_bindgen;
 
+#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PixelArt {
     pallet: Vec<u32>,
@@ -126,8 +127,8 @@ pub struct Display<'a> {
 
 impl PixelArt {
     /// Creates Bitmap from image file.
-    pub fn from_image<R: BufRead + Seek>(file: R, format: ImageFormat) -> Result<PixelArt, Error> {
-        let v = image::load(file, format)?;
+    pub fn from_image(image_buffer: &[u8], format: ImageFormat) -> Result<PixelArt, Error> {
+        let v = image::load_from_memory_with_format(image_buffer, format)?;
         let size = [v.width(), v.height()];
         let v = v.into_rgba8().into_raw();
         let mut col2idx = HashMap::new();
@@ -216,10 +217,26 @@ impl std::fmt::Display for ColorDisplay {
                 self.color & 0x0000FF
             )),
             PalletFormat::RGBFloat => {
-                let r =
-                    f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * 1000.0) / 1000.0;
-                let g = f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * 1000.0) / 1000.0;
-                let b = f32::round((self.color & 0x0000FF) as f32 / 255.0 * 1000.0) / 1000.0;
+                let r = (f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * 1000.0)
+                    / 1000.0)
+                    .to_string();
+                let r = match r.len() > 1 && space == "" {
+                    true => &r[1..],
+                    false => &r[0..],
+                };
+                let g = (f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * 1000.0)
+                    / 1000.0)
+                    .to_string();
+                let g = match g.len() > 1 && space == "" {
+                    true => &g[1..],
+                    false => &g[0..],
+                };
+                let b = (f32::round((self.color & 0x0000FF) as f32 / 255.0 * 1000.0) / 1000.0)
+                    .to_string();
+                let b = match b.len() > 1 && space == "" {
+                    true => &b[1..],
+                    false => &b[0..],
+                };
                 if r == g && g == b {
                     f.write_fmt(format_args!("vec3({r})"))
                 } else {
@@ -245,7 +262,7 @@ fn pallet_format() {
     display.format = PalletFormat::RGBHexadecimal;
     assert_eq!("vec3(0xb0, 0xf2, 0x63) / 255.0", &display.to_string());
     display.format = PalletFormat::RGBFloat;
-    assert_eq!("vec3(0.690, 0.949, 0.388)", &display.to_string());
+    assert_eq!("vec3(0.69, 0.949, 0.388)", &display.to_string());
 }
 
 #[derive(Clone, Copy, Debug)]

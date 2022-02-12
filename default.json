@@ -4,6 +4,6 @@
     "reverse_each_chunk": true,
     "force_to_raw": false
   },
-  "pallet_format": "RGBFloat",
-  "inline_level": "Geekest"
+  "pallet_format": "RGBDecimal",
+  "inline_level": "None"
 }
