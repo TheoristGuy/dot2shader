@@ -508,12 +508,16 @@ impl<'a> Display<'a> {
                 true => "CHUNKS_IN_U32 - 1".to_string(),
                 false => (32 / bit_shift - 1).to_string(),
             };
+            let bit_shift = match inline_none {
+                true => format!("32 / {chunks_in_u32}"),
+                false => bit_shift.to_string(),
+            };
             match self.config.buffer_format.reverse_each_chunk {
                 true => f.write_fmt(format_args!(
-                    "    return PALLET[BUFFER[u.y] >> u.x * 32 / {chunks_in_u32} & {rem_coef}];\n",
+                    "    return PALLET[BUFFER[u.y] >> u.x * {bit_shift} & {rem_coef}];\n",
                 ))?,
                 false => f.write_fmt(format_args!(
-                    "    return PALLET[BUFFER[u.y] >> ({semi_chunks_in_u32} - u.x) * 32 / {chunks_in_u32} & {rem_coef}];\n",
+                    "    return PALLET[BUFFER[u.y] >> ({semi_chunks_in_u32} - u.x) * {bit_shift} & {rem_coef}];\n",
                 ))?,
             }
         } else {
