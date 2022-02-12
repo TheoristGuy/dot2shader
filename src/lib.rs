@@ -86,6 +86,12 @@ pub struct DisplayConfig {
     pub pallet_format: PalletFormat,
 }
 
+#[test]
+fn default_config() {
+    let string = serde_json::to_string_pretty(&DisplayConfig::default()).unwrap();
+    std::fs::write("default.json", &string).unwrap();
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Display<'a> {
     entity: &'a PixelArt,
@@ -132,7 +138,7 @@ impl PixelArt {
         usize::pow(
             2,
             f32::ceil(f32::log2(
-                1.0 + f32::floor(f32::log2(usize::max(self.pallet.len(), 1) as f32)),
+                1.0 + f32::floor(f32::log2(usize::max(self.pallet.len() - 1, 1) as f32)),
             )) as u32,
         )
     }
@@ -276,7 +282,7 @@ impl<'a> Display<'a> {
             true => 8,
             false => self.entity.size[0] as usize,
         };
-        let intable = buffer.iter().copied().max().unwrap() < 0x800000;
+        let intable = buffer.iter().copied().max().unwrap() < 0x80000000;
         match intable {
             true => f.write_str("const int BUFFER[] = int[](\n")?,
             false => f.write_str("const uint BUFFER[] = uint[](\n")?,
@@ -381,20 +387,4 @@ impl<'a> std::fmt::Display for Display<'a> {
         self.fmt_get_color(intable, f)?;
         self.fmt_main(f)
     }
-}
-
-#[test]
-fn display_test() {
-    let reader = std::io::BufReader::new(std::fs::File::open("resources/heart.png").unwrap());
-    let pixel_art = PixelArt::from_image(reader, ImageFormat::Png).unwrap();
-    let display = pixel_art
-        .display(DisplayConfig {
-            buffer_format: BufferFormat {
-                //force_to_raw: true,
-                ..Default::default()
-            },
-            pallet_format: PalletFormat::RGBFloat,
-        })
-        .unwrap();
-    println!("{display}");
 }

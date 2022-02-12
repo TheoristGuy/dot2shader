@@ -1,0 +1,8 @@
+{
+  "buffer_format": {
+    "reverse_rows": true,
+    "reverse_each_chunk": true,
+    "force_to_raw": false
+  },
+  "pallet_format": "RGBDecimal"
+}
