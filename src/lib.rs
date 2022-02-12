@@ -1,7 +1,7 @@
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::io::{BufRead, Seek};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -93,7 +93,7 @@ fn default_config() {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Display<'a> {
+pub struct ShadertoyDisplay<'a> {
     entity: &'a PixelArt,
     config: DisplayConfig,
 }
@@ -125,8 +125,8 @@ impl PixelArt {
     }
 
     #[inline]
-    pub fn display(&self, config: DisplayConfig) -> Result<Display, Error> {
-        Ok(Display {
+    pub fn display(&self, config: DisplayConfig) -> Result<ShadertoyDisplay, Error> {
+        Ok(ShadertoyDisplay {
             entity: self,
             config,
         })
@@ -164,27 +164,32 @@ impl PixelArt {
 #[derive(Clone, Copy, Debug)]
 struct ColorDisplay {
     format: PalletFormat,
+    put_space: bool,
     color: u32,
 }
-impl std::fmt::Display for ColorDisplay {
+impl Display for ColorDisplay {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        let space = match self.put_space {
+            true => " ",
+            false => "",
+        };
         match self.format {
             PalletFormat::IntegerDecimal => f.write_fmt(format_args!("{}", self.color)),
             PalletFormat::IntegerHexadecimal => f.write_fmt(format_args!("{:#x}", self.color)),
             PalletFormat::RGBDecimal => f.write_fmt(format_args!(
-                "vec3({}, {}, {}) / 255.0",
+                "vec3({},{space}{},{space}{}) / 255.0",
                 (self.color & 0xFF0000) >> 16,
                 (self.color & 0x00FF00) >> 8,
                 self.color & 0x0000FF
             )),
             PalletFormat::RGBHexadecimal => f.write_fmt(format_args!(
-                "vec3({:#x}, {:#x}, {:#x}) / 255.0",
+                "vec3({:#x},{space}{:#x},{space}{:#x}) / 255.0",
                 (self.color & 0xFF0000) >> 16,
                 (self.color & 0x00FF00) >> 8,
                 self.color & 0x0000FF
             )),
             PalletFormat::RGBFloat => f.write_fmt(format_args!(
-                "vec3({:.3}, {:.3}, {:.3})",
+                "vec3({:.3},{space}{:.3},{space}{:.3})",
                 ((self.color & 0xFF0000) >> 16) as f32 / 255.0,
                 ((self.color & 0x00FF00) >> 8) as f32 / 255.0,
                 (self.color & 0x0000FF) as f32 / 255.0
@@ -197,6 +202,7 @@ impl std::fmt::Display for ColorDisplay {
 fn pallet_format() {
     let mut display = ColorDisplay {
         format: PalletFormat::IntegerDecimal,
+        put_space: true,
         color: 11596387,
     };
     assert_eq!("11596387", &display.to_string());
@@ -210,7 +216,7 @@ fn pallet_format() {
     assert_eq!("vec3(0.690, 0.949, 0.388)", &display.to_string());
 }
 
-impl<'a> Display<'a> {
+impl<'a> ShadertoyDisplay<'a> {
     fn fmt_pallet(&self, f: &mut Formatter) -> std::fmt::Result {
         let format = self.config.pallet_format;
         let output_type = match format {
@@ -229,7 +235,11 @@ impl<'a> Display<'a> {
             .copied()
             .enumerate()
             .try_for_each(|(i, color)| {
-                let display = ColorDisplay { format, color };
+                let display = ColorDisplay {
+                    format,
+                    put_space: true,
+                    color,
+                };
                 match i + 1 != self.entity.pallet.len() {
                     true => f.write_fmt(format_args!("    {display},\n")),
                     false => f.write_fmt(format_args!("    {display}\n")),
@@ -282,6 +292,19 @@ impl<'a> Display<'a> {
             true => 8,
             false => self.entity.size[0] as usize,
         };
+        f.write_fmt(format_args!(
+            "const int WIDTH = {width}, HEIGHT = {height}",
+            width = self.entity.size[0],
+            height = self.entity.size[1],
+        ))?;
+        match self.is_compressible() {
+            true => {
+                let bit_shift = self.entity.necessary_bit_shift();
+                let chunk_size = 32 / bit_shift;
+                f.write_fmt(format_args!(", CHUNK_SIZE = {chunk_size};\n"))?
+            }
+            false => f.write_str(";\n")?,
+        }
         let intable = buffer.iter().copied().max().unwrap() < 0x80000000;
         match intable {
             true => f.write_str("const int BUFFER[] = int[](\n")?,
@@ -319,34 +342,24 @@ impl<'a> Display<'a> {
             }
         ))?;
         match self.config.buffer_format.reverse_rows {
-            true => f.write_fmt(format_args!(
-                "    int idx = u.y * {} + u.x;\n",
-                self.entity.size[0]
-            ))?,
-            false => f.write_fmt(format_args!(
-                "    int idx = ({} - u.y) * {} + u.x;\n",
-                self.entity.size[1] - 1,
-                self.entity.size[0]
-            ))?,
+            true => f.write_str("    int idx = u.y * WIDTH + u.x;\n")?,
+            false => f.write_str("    int idx = (HEIGHT - u.y - 1) * WIDTH + u.x;\n")?,
         }
         if self.is_compressible() {
-            let bit_shift = self.entity.necessary_bit_shift();
-            let chunk_size = 32 / bit_shift;
-            f.write_fmt(format_args!(
-                "    u = ivec2(idx % {chunk_size}, idx / {chunk_size});\n"
-            ))?;
-            let rem_coef = u32::pow(2, bit_shift as u32) - 1;
-            let buffer_suffix = match intable {
-                true => "",
-                false => "U",
+            f.write_str(
+                "    u = ivec2(idx % CHUNK_SIZE, idx / CHUNK_SIZE);
+    int bitShift = 32 / CHUNK_SIZE;\n",
+            )?;
+            let rem_coef = match intable {
+                true => "(1 << bitShift) - 1",
+                false => "(1u << bitShift) - 1u",
             };
             match self.config.buffer_format.reverse_each_chunk {
                 true => f.write_fmt(format_args!(
-                    "    return PALLET[BUFFER[u.y] >> u.x * {bit_shift} & {rem_coef}{buffer_suffix}];\n",
+                    "    return PALLET[BUFFER[u.y] >> u.x * 32 / CHUNK_SIZE & {rem_coef}];\n",
                 ))?,
                 false => f.write_fmt(format_args!(
-                    "    return PALLET[BUFFER[u.y] >> ({} - u.x) * {bit_shift} & {rem_coef}{buffer_suffix}];\n",
-                    chunk_size - 1,
+                    "    return PALLET[BUFFER[u.y] >> (CHUNK_SIZE - u.x - 1) * 32 / CHUNK_SIZE & {rem_coef}];\n",
                 ))?,
             }
         } else {
@@ -356,7 +369,6 @@ impl<'a> Display<'a> {
     }
 
     fn fmt_main(&self, f: &mut Formatter) -> std::fmt::Result {
-        let [width, height] = self.entity.size;
         let get_color = match self.config.pallet_format.is_integer() {
             true => "int2rgb(getColor(u))",
             false => "getColor(u)",
@@ -364,11 +376,9 @@ impl<'a> Display<'a> {
         f.write_fmt(format_args!(
             "void mainImage(out vec4 O, in vec2 U) {{
     vec2 r = iResolution.xy;
-    ivec2 u = ivec2(floor((U - 0.5 * r) / r.y * {height}.0 + vec2({:?}, {:?})));
-    O = u == abs(u) && u.x < {width} && u.y < {height} ? vec4({get_color}, 1) : vec4(0.5);
-}}\n",
-            width as f32 / 2.0,
-            height as f32 / 2.0,
+    ivec2 u = ivec2(floor((U - 0.5 * r) / r.y * float(HEIGHT) + vec2(WIDTH, HEIGHT) / 2.0));
+    O = u == abs(u) && u.x < WIDTH && u.y < HEIGHT ? vec4({get_color}, 1) : vec4(0.5);
+}}\n"
         ))
     }
 }
@@ -377,7 +387,7 @@ const INT_TO_RGB: &str = "vec3 int2rgb(int color) {
     return vec3((color & 0xff0000) >> 16, (color & 0xff00) >> 8, color & 0xff) / 255.0;
 }\n\n";
 
-impl<'a> std::fmt::Display for Display<'a> {
+impl<'a> Display for ShadertoyDisplay<'a> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         self.fmt_pallet(f)?;
         let intable = self.fmt_buffer(f)?;
