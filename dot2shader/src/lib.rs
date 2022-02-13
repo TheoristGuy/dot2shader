@@ -532,7 +532,7 @@ impl<'a> Display<'a> {
             let chunks_in_u32 = 32 / bit_shift;
             if width != chunks_in_u32 as u32 {
                 f.write_fmt(format_args!(
-                    "int idx=u.y*{width}+u.x;u=ivec2(idx%{chunks_in_u32},idx/{chunks_in_u32});"
+                    "int i=u.y*{width}+u.x;u=ivec2(i%{chunks_in_u32},i/{chunks_in_u32});"
                 ))?;
             }
         }
