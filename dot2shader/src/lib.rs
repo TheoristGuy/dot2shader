@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Formatter;
 
+/// pixel art handler
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PixelArt {
     pallet: Vec<u32>,
@@ -83,6 +84,7 @@ impl Default for BufferFormat {
     }
 }
 
+/// Indicates the degree of inline
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InlineLevel {
     /// Each value has a meaningful name. There is no magic number.
@@ -100,6 +102,7 @@ impl Default for InlineLevel {
     }
 }
 
+/// configuation of display
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct DisplayConfig {
     /// buffer format
@@ -116,6 +119,7 @@ fn default_config() {
     std::fs::write("default.json", &string).unwrap();
 }
 
+/// Pixel art display, format the pixel art according to `DisplayConfig`.
 #[derive(Clone, Copy, Debug)]
 pub struct Display<'a> {
     entity: &'a PixelArt,

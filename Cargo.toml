@@ -2,4 +2,5 @@
 resolver = "2"
 members = [
     "dot2shader",
+    "dot2shader-gui",
 ]
