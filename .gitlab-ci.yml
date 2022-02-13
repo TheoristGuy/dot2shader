@@ -1,0 +1,16 @@
+stages:
+  - pages
+
+pages:
+  image: drydockapp/wasm-pack
+  stage: pages
+  script:
+    - mkdir -p public
+    - cd dot2shader-gui
+    - wasm-pack build --target web
+    - cp resources/index.html pkg/dot2shader_gui.js pkg/dot2shader_gui_bg.wasm ../public/
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
