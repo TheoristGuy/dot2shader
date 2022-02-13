@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PixelArt {
@@ -64,17 +63,13 @@ impl Default for PalletFormat {
 }
 
 /// buffer display format
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct BufferFormat {
     /// Turn the picture upside down so that the index starts at the bottom left of the picture. default: `true`
-    #[wasm_bindgen(js_name = "reverseRows")]
     pub reverse_rows: bool,
     /// Invert bytes of each chunk. default: `true`
-    #[wasm_bindgen(js_name = "reverseEachChunk")]
     pub reverse_each_chunk: bool,
     /// Even if the data can be compressed, the buffer will be displayed as an array without compression. default: `false`
-    #[wasm_bindgen(js_name = "forceToRaw")]
     pub force_to_raw: bool,
 }
 
