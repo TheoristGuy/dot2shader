@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PixelArt {
     pallet: Vec<u32>,
@@ -26,7 +25,6 @@ impl From<image::ImageError> for Error {
 }
 
 /// pallet display format
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum PalletFormat {
     /// U32 decimal integer format, e.g. `11596387`.
@@ -90,7 +88,6 @@ impl Default for BufferFormat {
     }
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InlineLevel {
     /// Each value has a meaningful name. There is no magic number.
@@ -108,17 +105,13 @@ impl Default for InlineLevel {
     }
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct DisplayConfig {
     /// buffer format
-    #[wasm_bindgen(js_name = "bufferFormat")]
     pub buffer_format: BufferFormat,
     /// pallet format
-    #[wasm_bindgen(js_name = "palletFormat")]
     pub pallet_format: PalletFormat,
     /// inline level
-    #[wasm_bindgen(js_name = "inlineLevel")]
     pub inline_level: InlineLevel,
 }
 
@@ -181,35 +174,6 @@ impl PixelArt {
     #[inline]
     fn is_compressible(&self) -> bool {
         self.pallet.len() < usize::pow(2, 16)
-    }
-}
-
-#[wasm_bindgen]
-impl PixelArt {
-    #[wasm_bindgen(js_name = "fromImage")]
-    pub fn from_image_(buffer: &[u8]) -> Option<PixelArt> {
-        PixelArt::from_image(buffer).ok()
-    }
-    #[wasm_bindgen(js_name = "swapPalletIndex")]
-    pub fn swap_pallet_index(&mut self, i: u32, j: u32) {
-        let color = self.pallet[i as usize];
-        self.pallet[i as usize] = self.pallet[j as usize];
-        self.pallet[j as usize] = color;
-        self.buffer.iter_mut().for_each(|idx| {
-            if *idx == i {
-                *idx = j;
-            } else if *idx == j {
-                *idx = i;
-            }
-        })
-    }
-    #[wasm_bindgen(js_name = "getCode")]
-    pub fn get_code(&self, config: DisplayConfig) -> String {
-        Display {
-            entity: self,
-            config,
-        }
-        .to_string()
     }
 }
 
