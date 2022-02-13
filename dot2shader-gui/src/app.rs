@@ -3,7 +3,7 @@ use eframe::{egui, epi};
 
 #[derive(Clone, Debug, Default)]
 pub struct TemplateApp {
-    pixel_art: Option<PixelArt>,
+    _pixel_art: Option<PixelArt>,
     config: DisplayConfig,
 }
 
