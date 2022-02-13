@@ -9,14 +9,8 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-eframe = "0.16.0" # Gives us egui, epi and web+native backends
-serde = { version = "1", features = ["derive"], optional = true }
-
-[features]
-default = []
-persistence = ["eframe/persistence", "serde"] # Enable if you want to persist app state on shutdown
+eframe = "0.16.0"
+dot2shader = { path = "../dot2shader" }
 
 [profile.release]
 opt-level = 2 # fast and small wasm
-
-[patch.crates-io]

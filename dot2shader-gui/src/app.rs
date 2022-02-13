@@ -1,30 +1,15 @@
+use dot2shader::*;
 use eframe::{egui, epi};
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
+#[derive(Clone, Debug, Default)]
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    // this how you opt-out of serialization of a member
-    #[cfg_attr(feature = "persistence", serde(skip))]
-    value: f32,
-}
-
-impl Default for TemplateApp {
-    fn default() -> Self {
-        Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
-        }
-    }
+    pixel_art: Option<PixelArt>,
+    config: DisplayConfig,
 }
 
 impl epi::App for TemplateApp {
     fn name(&self) -> &str {
-        "eframe template"
+        "dot2shader"
     }
 
     /// Called once before the first frame.
@@ -34,54 +19,44 @@ impl epi::App for TemplateApp {
         _frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        #[cfg(feature = "persistence")]
-        if let Some(storage) = _storage {
-            *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
-        }
-    }
-
-    /// Called by the frame work to save state before shutdown.
-    /// Note that you must enable the `persistence` feature for this to work.
-    #[cfg(feature = "persistence")]
-    fn save(&mut self, storage: &mut dyn epi::Storage) {
-        epi::set_value(storage, epi::APP_KEY, self);
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
-        let Self { label, value } = self;
-
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        frame.quit();
-                    }
-                });
-            });
-        });
+    fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
+        let Self {
+            config,
+            ..
+        } = self;
 
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
+            ui.heading("Configure");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
+            ui.separator();
+            ui.label("Inline Level");
+            ui.radio_value(&mut config.inline_level, InlineLevel::None, "no magic number, for Shadertoy");
+            ui.radio_value(&mut config.inline_level, InlineLevel::InlineVariable, "inline constant variables, for Shadertoy");
+            ui.radio_value(&mut config.inline_level, InlineLevel::Geekest, "crazy optimization, for twigl geekest");
 
-            ui.add(egui::Slider::new(value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                *value += 1.0;
-            }
+            ui.separator();
+            ui.label("Pallet Color format");
+            ui.radio_value(&mut config.pallet_format, PalletFormat::IntegerDecimal, "single decimal integer");
+            ui.radio_value(&mut config.pallet_format, PalletFormat::IntegerHexadecimal, "single hexadecimal integer");
+            ui.radio_value(&mut config.pallet_format, PalletFormat::RGBDecimal, "vec3, specified by decimal integers");
+            ui.radio_value(&mut config.pallet_format, PalletFormat::RGBHexadecimal, "vec3, specified by hexadecimal integers");
+            ui.radio_value(&mut config.pallet_format, PalletFormat::RGBFloat, "vec3, specified by floats");
+
+            ui.separator();
+            ui.label("Buffer Optimization");
+            ui.add(egui::Checkbox::new(&mut config.buffer_format.reverse_rows, "Turn the picture upside down."));
+            ui.add(egui::Checkbox::new(&mut config.buffer_format.reverse_each_chunk, "Invert bytes of each chunk."));
+            ui.add(egui::Checkbox::new(&mut config.buffer_format.force_to_raw, "Force not to compress the buffer."));
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+
+
+            egui::warn_if_debug_build(ui);
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.horizontal(|ui| {
@@ -92,18 +67,6 @@ impl epi::App for TemplateApp {
                     ui.hyperlink_to("eframe", "https://github.com/emilk/egui/tree/master/eframe");
                 });
             });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-
-            ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
-            egui::warn_if_debug_build(ui);
         });
 
         if false {

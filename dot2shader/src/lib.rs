@@ -25,7 +25,7 @@ impl From<image::ImageError> for Error {
 }
 
 /// pallet display format
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PalletFormat {
     /// U32 decimal integer format, e.g. `11596387`.
     IntegerDecimal,
