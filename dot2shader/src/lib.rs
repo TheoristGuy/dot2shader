@@ -537,13 +537,12 @@ impl<'a> Display<'a> {
             false => format!("vec2({},{})", width, height),
         };
         f.write_fmt(format_args!("ivec2 u=ivec2(FC.xy/r*{size_vec});"))?;
+        let bit_shift = self.entity.necessary_bit_shift();
+        let chunks_in_u32 = 32 / bit_shift;
+        let rem_coef = (1 << bit_shift) - 1;
         if self.is_compressible() {
-            let bit_shift = self.entity.necessary_bit_shift();
-            let chunks_in_u32 = 32 / bit_shift;
             if width != chunks_in_u32 as u32 {
-                f.write_fmt(format_args!(
-                    "int i=u.y*{width}+u.x;u=ivec2(i%{chunks_in_u32},i/{chunks_in_u32});"
-                ))?;
+                f.write_fmt(format_args!("int i=u.y*{width}+u.x;"))?;
             }
         }
         f.write_str("o.xyz=")?;
@@ -551,13 +550,14 @@ impl<'a> Display<'a> {
         f.write_str("[")?;
         let (buffer, intable) = self.compressed_buffer();
         self.fmt_buffer_array(&buffer, intable, f)?;
-        match self.is_compressible() {
-            true => {
-                let bit_shift = self.entity.necessary_bit_shift();
-                let rem_coef = (1 << bit_shift) - 1;
-                f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}"))?
-            }
-            false => f.write_str("[u.y*{width}+u.x]")?,
+        match (self.is_compressible(), width == chunks_in_u32 as u32) {
+            (true, false) => f.write_fmt(format_args!(
+                "[i/{chunks_in_u32}]>>i*{bit_shift}&{rem_coef}"
+            ))?,
+            (true, true) => f.write_fmt(format_args!(
+                "[u.y]>>u.x*{bit_shift}&{rem_coef}"
+            ))?,
+            (false, _) => f.write_str("[u.y*{width}+u.x]")?,
         }
         f.write_str("];")?;
         Ok(())
