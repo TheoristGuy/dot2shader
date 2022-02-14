@@ -120,15 +120,15 @@ impl Dot2ShaderApp {
                         .ok()
                 })
                 .filter(|pixel_art| {
-                    let pallet_size_limit = pixel_art.pallet().len() <= usize::pow(2, 16);
-                    if !pallet_size_limit {
+                    let palette_size_limit = pixel_art.palette().len() <= usize::pow(2, 16);
+                    if !palette_size_limit {
                         *message.lock().unwrap() = format!(
-                            "Pallet size is must be no more than {}. Pallet size: {}",
+                            "Palette size is must be no more than {}. Palette size: {}",
                             usize::pow(2, 16),
-                            pixel_art.pallet().len()
+                            pixel_art.palette().len()
                         );
                     }
-                    pallet_size_limit
+                    palette_size_limit
                 })?;
             *message.lock().unwrap() = String::new();
             *pixel_art.lock().unwrap() = Some(new_pixel_art);
@@ -184,39 +184,39 @@ impl epi::App for Dot2ShaderApp {
 
                     let geekest = config.inline_level == InlineLevel::Geekest;
                     if geekest {
-                        config.pallet_format = PalletFormat::RGBFloat;
+                        config.palette_format = PaletteFormat::RGBFloat;
                         config.buffer_format.force_to_raw = false;
                     }
 
                     ui.separator();
-                    ui.label("Pallet Color format");
-                    let mut add_pallet_radio = |format, string| {
+                    ui.label("Palette Color format");
+                    let mut add_palette_radio = |format, string| {
                         if ui
                             .add_enabled(
                                 !geekest,
-                                egui::RadioButton::new(config.pallet_format == format, string),
+                                egui::RadioButton::new(config.palette_format == format, string),
                             )
                             .clicked()
                         {
-                            config.pallet_format = format;
+                            config.palette_format = format;
                         }
                     };
-                    add_pallet_radio(PalletFormat::IntegerDecimal, "single decimal integer");
-                    add_pallet_radio(
-                        PalletFormat::IntegerHexadecimal,
+                    add_palette_radio(PaletteFormat::IntegerDecimal, "single decimal integer");
+                    add_palette_radio(
+                        PaletteFormat::IntegerHexadecimal,
                         "single hexadecimal integer",
                     );
-                    add_pallet_radio(
-                        PalletFormat::RGBDecimal,
+                    add_palette_radio(
+                        PaletteFormat::RGBDecimal,
                         "vec3, specified by decimal integers",
                     );
-                    add_pallet_radio(
-                        PalletFormat::RGBHexadecimal,
+                    add_palette_radio(
+                        PaletteFormat::RGBHexadecimal,
                         "vec3, specified by hexadecimal integers",
                     );
                     ui.radio_value(
-                        &mut config.pallet_format,
-                        PalletFormat::RGBFloat,
+                        &mut config.palette_format,
+                        PaletteFormat::RGBFloat,
                         "vec3, specified by floats",
                     );
 

@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 /// pixel art handler
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PixelArt {
-    pallet: Vec<u32>,
+    palette: Vec<u32>,
     buffer: Vec<u32>,
     size: [u32; 2],
 }
@@ -14,8 +14,8 @@ pub struct PixelArt {
 pub enum Error {
     #[error("{0}")]
     ImageError(image::ImageError),
-    #[error("The length of pallets is longer than 16.")]
-    PalletLengthOver16,
+    #[error("The length of palettes is longer than 16.")]
+    PaletteLengthOver16,
 }
 
 impl From<image::ImageError> for Error {
@@ -24,9 +24,9 @@ impl From<image::ImageError> for Error {
     }
 }
 
-/// pallet display format
+/// palette display format
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PalletFormat {
+pub enum PaletteFormat {
     /// U32 decimal integer format, e.g. `11596387`.
     IntegerDecimal,
     /// U32 hexadecimal integer format, e.g. `0xb0f263`
@@ -39,12 +39,12 @@ pub enum PalletFormat {
     RGBFloat,
 }
 
-impl PalletFormat {
+impl PaletteFormat {
     #[inline]
     pub fn is_integer(&self) -> bool {
         match self {
-            PalletFormat::IntegerDecimal => true,
-            PalletFormat::IntegerHexadecimal => true,
+            PaletteFormat::IntegerDecimal => true,
+            PaletteFormat::IntegerHexadecimal => true,
             _ => false,
         }
     }
@@ -57,7 +57,7 @@ impl PalletFormat {
     }
 }
 
-impl Default for PalletFormat {
+impl Default for PaletteFormat {
     fn default() -> Self {
         Self::RGBDecimal
     }
@@ -107,8 +107,8 @@ impl Default for InlineLevel {
 pub struct DisplayConfig {
     /// buffer format
     pub buffer_format: BufferFormat,
-    /// pallet format
-    pub pallet_format: PalletFormat,
+    /// palette format
+    pub palette_format: PaletteFormat,
     /// inline level
     pub inline_level: InlineLevel,
 }
@@ -141,20 +141,20 @@ impl PixelArt {
                 *col2idx.entry(x).or_insert(idx as u32)
             })
             .collect();
-        let mut pallet = vec![0; col2idx.len()];
+        let mut palette = vec![0; col2idx.len()];
         col2idx
             .into_iter()
-            .for_each(|(idx, i)| pallet[i as usize] = idx);
+            .for_each(|(idx, i)| palette[i as usize] = idx);
         Ok(PixelArt {
-            pallet,
+            palette,
             buffer,
             size,
         })
     }
 
     #[inline]
-    pub fn pallet(&self) -> &Vec<u32> {
-        &self.pallet
+    pub fn palette(&self) -> &Vec<u32> {
+        &self.palette
     }
 
     #[inline]
@@ -176,19 +176,19 @@ impl PixelArt {
         usize::pow(
             2,
             f32::ceil(f32::log2(
-                1.0 + f32::floor(f32::log2(usize::max(self.pallet.len() - 1, 1) as f32)),
+                1.0 + f32::floor(f32::log2(usize::max(self.palette.len() - 1, 1) as f32)),
             )) as u32,
         )
     }
     #[inline]
     fn is_compressible(&self) -> bool {
-        self.pallet.len() < usize::pow(2, 16)
+        self.palette.len() < usize::pow(2, 16)
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 struct ColorDisplay {
-    format: PalletFormat,
+    format: PaletteFormat,
     space_delim: &'static str,
     color: u32,
 }
@@ -200,21 +200,21 @@ impl std::fmt::Display for ColorDisplay {
             false => "0",
         };
         match self.format {
-            PalletFormat::IntegerDecimal => f.write_fmt(format_args!("{}", self.color)),
-            PalletFormat::IntegerHexadecimal => f.write_fmt(format_args!("{:#x}", self.color)),
-            PalletFormat::RGBDecimal => f.write_fmt(format_args!(
+            PaletteFormat::IntegerDecimal => f.write_fmt(format_args!("{}", self.color)),
+            PaletteFormat::IntegerHexadecimal => f.write_fmt(format_args!("{:#x}", self.color)),
+            PaletteFormat::RGBDecimal => f.write_fmt(format_args!(
                 "vec3({},{space}{},{space}{}){space}/{space}255.{zero}",
                 (self.color & 0xFF0000) >> 16,
                 (self.color & 0x00FF00) >> 8,
                 self.color & 0x0000FF
             )),
-            PalletFormat::RGBHexadecimal => f.write_fmt(format_args!(
+            PaletteFormat::RGBHexadecimal => f.write_fmt(format_args!(
                 "vec3({:#x},{space}{:#x},{space}{:#x}){space}/{space}255.{zero}",
                 (self.color & 0xFF0000) >> 16,
                 (self.color & 0x00FF00) >> 8,
                 self.color & 0x0000FF
             )),
-            PalletFormat::RGBFloat => {
+            PaletteFormat::RGBFloat => {
                 let unit = match space == "" {
                     true => 100.0,
                     false => 1000.0,
@@ -248,20 +248,20 @@ impl std::fmt::Display for ColorDisplay {
 }
 
 #[test]
-fn pallet_format() {
+fn palette_format() {
     let mut display = ColorDisplay {
-        format: PalletFormat::IntegerDecimal,
+        format: PaletteFormat::IntegerDecimal,
         space_delim: " ",
         color: 11596387,
     };
     assert_eq!("11596387", &display.to_string());
-    display.format = PalletFormat::IntegerHexadecimal;
+    display.format = PaletteFormat::IntegerHexadecimal;
     assert_eq!("0xb0f263", &display.to_string());
-    display.format = PalletFormat::RGBDecimal;
+    display.format = PaletteFormat::RGBDecimal;
     assert_eq!("vec3(176, 242, 99) / 255.0", &display.to_string());
-    display.format = PalletFormat::RGBHexadecimal;
+    display.format = PaletteFormat::RGBHexadecimal;
     assert_eq!("vec3(0xb0, 0xf2, 0x63) / 255.0", &display.to_string());
-    display.format = PalletFormat::RGBFloat;
+    display.format = PaletteFormat::RGBFloat;
     assert_eq!("vec3(0.69, 0.949, 0.388)", &display.to_string());
 }
 
@@ -299,8 +299,8 @@ impl From<InlineLevel> for ArrayDisplayConfig {
 }
 
 impl<'a> Display<'a> {
-    fn fmt_pallet_array(&self, f: &mut Formatter) -> std::fmt::Result {
-        let format = self.config.pallet_format;
+    fn fmt_palette_array(&self, f: &mut Formatter) -> std::fmt::Result {
+        let format = self.config.palette_format;
         let output_type = format.element_type();
         let ArrayDisplayConfig {
             return_delim,
@@ -310,7 +310,7 @@ impl<'a> Display<'a> {
         } = self.config.inline_level.into();
         f.write_fmt(format_args!("{output_type}[]({return_delim}"))?;
         self.entity
-            .pallet
+            .palette
             .iter()
             .copied()
             .enumerate()
@@ -320,17 +320,17 @@ impl<'a> Display<'a> {
                     space_delim,
                     color,
                 };
-                match i + 1 != self.entity.pallet.len() {
+                match i + 1 != self.entity.palette.len() {
                     true => f.write_fmt(format_args!("{indent_delim}{display},{return_delim}")),
                     false => f.write_fmt(format_args!("{indent_delim}{display}{return_delim}")),
                 }
             })?;
         f.write_fmt(format_args!("){semi_colon}{return_delim}{return_delim}"))
     }
-    fn fmt_non_inline_pallet(&self, f: &mut Formatter) -> std::fmt::Result {
-        let output_type = self.config.pallet_format.element_type();
-        f.write_fmt(format_args!("const {output_type} PALLET[] = "))?;
-        self.fmt_pallet_array(f)
+    fn fmt_non_inline_palette(&self, f: &mut Formatter) -> std::fmt::Result {
+        let output_type = self.config.palette_format.element_type();
+        f.write_fmt(format_args!("const {output_type} PALETTE[] = "))?;
+        self.fmt_palette_array(f)
     }
 
     #[inline]
@@ -444,7 +444,7 @@ impl<'a> Display<'a> {
         let same_size = self.entity.size[0] as usize == 32 / bit_shift;
         f.write_fmt(format_args!(
             "{} getColor(in ivec2 u) {{\n",
-            self.config.pallet_format.element_type(),
+            self.config.palette_format.element_type(),
         ))?;
         let inline_none = self.config.inline_level == InlineLevel::None;
         let width = match inline_none {
@@ -492,14 +492,14 @@ impl<'a> Display<'a> {
             };
             match self.config.buffer_format.reverse_each_chunk {
                 true => f.write_fmt(format_args!(
-                    "    return PALLET[BUFFER[u.y] >> u.x * {bit_shift} & {rem_coef}];\n",
+                    "    return PALETTE[BUFFER[u.y] >> u.x * {bit_shift} & {rem_coef}];\n",
                 ))?,
                 false => f.write_fmt(format_args!(
-                    "    return PALLET[BUFFER[u.y] >> ({semi_chunks_in_u32} - u.x) * {bit_shift} & {rem_coef}];\n",
+                    "    return PALETTE[BUFFER[u.y] >> ({semi_chunks_in_u32} - u.x) * {bit_shift} & {rem_coef}];\n",
                 ))?,
             }
         } else {
-            f.write_str("    return PALLET[BUFFER[idx]];\n")?;
+            f.write_str("    return PALETTE[BUFFER[idx]];\n")?;
         }
         f.write_str("}\n\n")
     }
@@ -523,7 +523,7 @@ impl<'a> Display<'a> {
                     ),
                 ),
             };
-        let get_color = match self.config.pallet_format.is_integer() {
+        let get_color = match self.config.palette_format.is_integer() {
             true => "int2rgb(getColor(u))",
             false => "getColor(u)",
         };
@@ -551,7 +551,7 @@ impl<'a> Display<'a> {
             }
         }
         f.write_str("o.xyz=")?;
-        self.fmt_pallet_array(f)?;
+        self.fmt_palette_array(f)?;
         f.write_str("[")?;
         let (buffer, intable) = self.compressed_buffer();
         self.fmt_buffer_array(&buffer, intable, f)?;
@@ -576,9 +576,9 @@ impl<'a> std::fmt::Display for Display<'a> {
         if self.config.inline_level == InlineLevel::Geekest {
             self.fmt_geekest(f)
         } else {
-            self.fmt_non_inline_pallet(f)?;
+            self.fmt_non_inline_palette(f)?;
             let intable = self.fmt_non_inline_buffer(f)?;
-            if self.config.pallet_format.is_integer() {
+            if self.config.palette_format.is_integer() {
                 f.write_str(INT_TO_RGB)?;
             }
             self.fmt_get_color(intable, f)?;
