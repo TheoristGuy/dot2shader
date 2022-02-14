@@ -64,7 +64,7 @@ impl Default for PalletFormat {
 }
 
 /// buffer display format
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BufferFormat {
     /// Turn the picture upside down so that the index starts at the bottom left of the picture. default: `true`
     pub reverse_rows: bool,
@@ -103,7 +103,7 @@ impl Default for InlineLevel {
 }
 
 /// configuation of display
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DisplayConfig {
     /// buffer format
     pub buffer_format: BufferFormat,
@@ -150,6 +150,16 @@ impl PixelArt {
             buffer,
             size,
         })
+    }
+
+    #[inline]
+    pub fn pallet(&self) -> &Vec<u32> {
+        &self.pallet
+    }
+
+    #[inline]
+    pub fn buffer(&self) -> &Vec<u32> {
+        &self.buffer
     }
 
     #[inline]

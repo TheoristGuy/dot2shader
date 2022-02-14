@@ -12,5 +12,19 @@ crate-type = ["cdylib", "rlib"]
 eframe = "0.16.0"
 dot2shader = { path = "../dot2shader" }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+native-dialog = "0.6.3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3.56"
+web-sys = { version = "0.3.56", features = [
+    "console",
+    "Document",
+    "FileReader",
+    "HtmlInputElement",
+    "Window",
+] }
+wasm-bindgen-futures = "0.4.29"
+
 [profile.release]
 opt-level = 2 # fast and small wasm

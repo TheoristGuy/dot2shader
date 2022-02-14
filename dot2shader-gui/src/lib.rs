@@ -3,7 +3,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
-pub use app::TemplateApp;
+pub use app::Dot2ShaderApp;
 
 // ----------------------------------------------------------------------------
 // When compiling for web:
@@ -16,8 +16,21 @@ use eframe::wasm_bindgen::{self, prelude::*};
 /// It loads the app, installs some callbacks, then returns.
 /// You can add more callbacks like this if you want to call in to your code.
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn start(canvas_id: &str) -> Result<(), eframe::wasm_bindgen::JsValue> {
-    let app = TemplateApp::default();
-    eframe::start_web(canvas_id, Box::new(app))
+#[wasm_bindgen(start)]
+pub fn start() -> Result<(), eframe::wasm_bindgen::JsValue> {
+    let doc = web_sys::window()
+        .and_then(|win| win.document())
+        .expect("failed to init document");
+    let body = doc.body().expect("failed to get body");
+    let canvas = doc.create_element("canvas")?;
+    canvas.set_id("canvas");
+    body.append_child(&canvas)?;
+    let file_input = doc.create_element("input")?;
+    file_input.set_id("file-input");
+    file_input.set_attribute("type", "file")?;
+    file_input.set_attribute("style", "display:none")?;
+    body.append_child(&file_input)?;
+
+    let app = Dot2ShaderApp::default();
+    eframe::start_web("canvas", Box::new(app))
 }

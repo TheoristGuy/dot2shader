@@ -5,7 +5,7 @@
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let app = dot2shader_gui::TemplateApp::default();
+    let app = dot2shader_gui::Dot2ShaderApp::default();
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(Box::new(app), native_options);
 }
