@@ -440,6 +440,8 @@ impl<'a> Display<'a> {
         Ok(intable)
     }
     fn fmt_get_color(&self, intable: bool, f: &mut Formatter) -> std::fmt::Result {
+        let bit_shift = self.entity.necessary_bit_shift();
+        let same_size = self.entity.size[0] as usize == 32 / bit_shift;
         f.write_fmt(format_args!(
             "{} getColor(in ivec2 u) {{\n",
             self.config.pallet_format.element_type(),
@@ -453,23 +455,26 @@ impl<'a> Display<'a> {
             true => "HEIGHT - 1".to_string(),
             false => (self.entity.size[1] - 1).to_string(),
         };
-        match self.config.buffer_format.reverse_rows {
-            true => f.write_fmt(format_args!("    int idx = u.y * {width} + u.x;\n"))?,
-            false => f.write_fmt(format_args!(
-                "    int idx = ({semi_height} - u.y) * {width} + u.x;\n"
-            ))?,
+        if !same_size || inline_none || !self.is_compressible() {
+            match self.config.buffer_format.reverse_rows {
+                true => f.write_fmt(format_args!("    int idx = u.y * {width} + u.x;\n"))?,
+                false => f.write_fmt(format_args!(
+                    "    int idx = ({semi_height} - u.y) * {width} + u.x;\n"
+                ))?,
+            }
         }
         if self.is_compressible() {
-            let bit_shift = self.entity.necessary_bit_shift();
             let chunks_in_u32 = match inline_none {
                 true => "CHUNKS_IN_U32".to_string(),
                 false => (32 / bit_shift).to_string(),
             };
-            f.write_fmt(format_args!(
-                "    u = ivec2(idx % {chunks_in_u32}, idx / {chunks_in_u32});\n"
-            ))?;
-            if inline_none {
-                f.write_str("    int bitShift = 32 / CHUNKS_IN_U32;\n")?;
+            if !same_size || inline_none {
+                f.write_fmt(format_args!(
+                    "    u = ivec2(idx % {chunks_in_u32}, idx / {chunks_in_u32});\n"
+                ))?;
+                if inline_none {
+                    f.write_str("    int bitShift = 32 / CHUNKS_IN_U32;\n")?;
+                }
             }
             let rem_coef = match (inline_none, intable) {
                 (true, true) => "(1 << bitShift) - 1".to_string(),
@@ -554,9 +559,7 @@ impl<'a> Display<'a> {
             (true, false) => f.write_fmt(format_args!(
                 "[i/{chunks_in_u32}]>>i*{bit_shift}&{rem_coef}"
             ))?,
-            (true, true) => f.write_fmt(format_args!(
-                "[u.y]>>u.x*{bit_shift}&{rem_coef}"
-            ))?,
+            (true, true) => f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}"))?,
             (false, _) => f.write_str("[u.y*{width}+u.x]")?,
         }
         f.write_str("];")?;

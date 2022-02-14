@@ -252,7 +252,7 @@ impl epi::App for Dot2ShaderApp {
                         self.previous_config = self.config;
                     }
                 }
-                    ui.separator();
+                ui.separator();
                 ui.label("");
                 let open_dialog = ui.button("file open").clicked();
                 self.read_file(open_dialog);
