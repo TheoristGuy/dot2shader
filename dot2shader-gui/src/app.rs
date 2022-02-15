@@ -225,7 +225,10 @@ impl Dot2ShaderApp {
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.horizontal(|ui| {
-                ui.hyperlink_to("GitHub Repository", "https://github.com/TheoristGuy/dot2shader");
+                ui.hyperlink_to(
+                    "GitHub Repository",
+                    "https://github.com/TheoristGuy/dot2shader",
+                );
             });
             ui.horizontal(|ui| {
                 ui.label("created by ");
