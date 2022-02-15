@@ -206,10 +206,13 @@ impl Dot2ShaderApp {
             self.previous_config = self.config;
         }
     }
-    fn file_open_button(&mut self, ui: &mut egui::Ui) {
-        ui.label("");
-        let open_dialog = ui.button("File Open...").clicked();
-        self.read_file(open_dialog);
+    fn file_open_button(&self, ui: &mut egui::Ui) {
+        self.read_file(ui.button("File Open...").clicked());
+    }
+    fn copy_button(&self, ui: &mut egui::Ui) {
+        if ui.button("Copy Code").clicked() {
+            ui.output().copied_text = self.string.lock().unwrap().clone();
+        }
     }
     fn error_message_label(&mut self, ui: &mut egui::Ui) {
         let message = self.message.lock().unwrap().clone();
@@ -242,7 +245,17 @@ impl Dot2ShaderApp {
             self.setting_change_string_update();
         }
         ui.separator();
-        self.file_open_button(ui);
+        ui.label("");
+        if loaded {
+            ui.horizontal(|ui| {
+                self.copy_button(ui);
+                ui.with_layout(egui::Layout::right_to_left(), |ui| {
+                    self.file_open_button(ui);
+                })
+            });
+        } else {
+            self.file_open_button(ui);
+        }
         self.error_message_label(ui);
         egui::warn_if_debug_build(ui);
         self.bottom_credit(ui);
@@ -281,14 +294,5 @@ impl epi::App for Dot2ShaderApp {
                 );
             });
         });
-
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally chose either panels OR windows.");
-            });
-        }
     }
 }

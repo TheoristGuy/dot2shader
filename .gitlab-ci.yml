@@ -5,6 +5,7 @@ pages:
   image: drydockapp/wasm-pack
   stage: pages
   script:
+    - export RUSTFLAGS=--cfg=web_sys_unstable_apis
     - mkdir -p public
     - cd dot2shader-gui
     - wasm-pack build --target web
