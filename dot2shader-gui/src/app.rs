@@ -18,6 +18,7 @@ impl Dot2ShaderApp {
         if open_dialog {
             let message = Arc::clone(&self.message);
             let path = native_dialog::FileDialog::new()
+                .add_filter("pixel dot files", &["png", "bmp", "gif"])
                 .show_open_single_file()
                 .unwrap_or_else(|e| {
                     *message.lock().unwrap() = e.to_string();

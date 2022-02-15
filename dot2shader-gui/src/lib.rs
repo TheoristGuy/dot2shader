@@ -29,6 +29,7 @@ pub fn start() -> Result<(), eframe::wasm_bindgen::JsValue> {
     file_input.set_id("file-input");
     file_input.set_attribute("type", "file")?;
     file_input.set_attribute("style", "display:none")?;
+    file_input.set_attribute("accept", "image/png, image/gif, image/bmp")?;
     body.append_child(&file_input)?;
 
     let app = Dot2ShaderApp::default();

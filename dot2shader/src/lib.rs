@@ -16,6 +16,8 @@ pub enum Error {
     ImageError(image::ImageError),
     #[error("The length of palettes is longer than 16.")]
     PaletteLengthOver16,
+    #[error("Supported image format is PNG, BMP, and GIF.")]
+    UnsupportedImageFormat,
 }
 
 impl From<image::ImageError> for Error {
@@ -129,7 +131,14 @@ pub struct Display<'a> {
 impl PixelArt {
     /// Creates Bitmap from image file.
     pub fn from_image(image_buffer: &[u8]) -> Result<PixelArt, Error> {
-        let v = image::load_from_memory(image_buffer)?;
+        let format = image::guess_format(image_buffer)?;
+        match format {
+            image::ImageFormat::Png => {}
+            image::ImageFormat::Bmp => {}
+            image::ImageFormat::Gif => {}
+            _ => return Err(Error::UnsupportedImageFormat),
+        }
+        let v = image::load_from_memory_with_format(image_buffer, format)?;
         let size = [v.width(), v.height()];
         let v = v.into_rgba8().into_raw();
         let mut col2idx = HashMap::new();
