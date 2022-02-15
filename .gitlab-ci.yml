@@ -6,7 +6,7 @@ pages:
     - mkdir -p public
     - cd dot2shader-gui
     - wasm-pack build --target web
-    - cp resources/index.html pkg/dot2shader_gui.js pkg/dot2shader_gui_bg.wasm ../public/
+    - cp resources/index.html resources/favicon.ico pkg/dot2shader_gui.js pkg/dot2shader_gui_bg.wasm ../public/
     - cd ..
     - cargo doc --no-deps
     - cp -r target/doc public/libdoc
