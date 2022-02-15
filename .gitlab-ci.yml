@@ -9,7 +9,7 @@ test:
   before_script:
     - rustup component add rustfmt clippy
   script:
-    - cargo test
+    - cargo test -p dot2shader
     - cargo fmt --all -- --check
     - cargo clippy --release
 
@@ -17,13 +17,14 @@ wasm-pack:
   image: drydockapp/wasm-pack
   stage: build
   script:
+    - mkdir -p built-page
     - export RUSTFLAGS=--cfg=web_sys_unstable_apis
     - cd dot2shader-gui
     - wasm-pack build --target web
-    - mv pkg ..
+    - mv resources/index.html resources/favicon.ico pkg/dot2shader_gui.js pkg/dot2shader_gui_bg.wasm ../built-page/
   artifacts:
     paths:
-      - pkg
+      - built-page
 
 doc:
   image: rust:latest
@@ -40,7 +41,8 @@ pages:
   stage: deploy
   script:
     - mkdir -p public
-    - mv dot2shader-gui/resources/index.html dot2shader-gui/resources/favicon.ico pkg/dot2shader_gui.js pkg/dot2shader_gui_bg.wasm libdoc public
+    - mv built-page/* public/
+    - mv libdoc public/
   artifacts:
     paths:
       - public
