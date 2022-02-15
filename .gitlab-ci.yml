@@ -3,10 +3,13 @@ pages:
   stage: deploy
   script:
     - export RUSTFLAGS=--cfg=web_sys_unstable_apis
-    - mkdir -p public
+    - mkdir -p public/libdoc
     - cd dot2shader-gui
     - wasm-pack build --target web
     - cp resources/index.html pkg/dot2shader_gui.js pkg/dot2shader_gui_bg.wasm ../public/
+    - cd ..
+    - cargo doc
+    - cp -r target/doc/dot2shader public/libdoc/dot2shader
   artifacts:
     paths:
     - public

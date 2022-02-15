@@ -1,13 +1,15 @@
 # dot2shader
 
+--> [PRE-BUILD PAGE IS HERE](https://iwbtshyguy.gitlab.io/dot2shader/) <--
+
 A tool for generating shaders displaying pixel art textures in [Shadertoy](https://www.shadertoy.com/) and [twigl](https://twigl.app/).
 
 ## Quick start
 
 1. Go to [pre-build webpage](https://iwbtshyguy.gitlab.io/dot2shader/).
-2. Click the "file open" button in the upper left corner.
+2. Click the "File Open" button in the upper left corner.
 3. Choose a pixel art file. PNG, GIF, BMP are recommended.
-4. Copy and paste the generated code on the right into Shadertoy!
+4. Copy the generated shader by the "Copy Code" button and paste into [Shadertoy editor](https://www.shadertoy.com/new)!
 
 ## Optimization for twigl/geekest
 
