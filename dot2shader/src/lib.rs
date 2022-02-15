@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+#![cfg_attr(not(debug_assertions), deny(warnings))]
+#![warn(clippy::all, rust_2018_idioms)]
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Formatter;
@@ -44,11 +48,8 @@ pub enum PaletteFormat {
 impl PaletteFormat {
     #[inline]
     pub fn is_integer(&self) -> bool {
-        match self {
-            PaletteFormat::IntegerDecimal => true,
-            PaletteFormat::IntegerHexadecimal => true,
-            _ => false,
-        }
+        use PaletteFormat::*;
+        matches!(self, IntegerDecimal | IntegerHexadecimal)
     }
     #[inline]
     pub fn element_type(&self) -> &'static str {
@@ -173,7 +174,7 @@ impl PixelArt {
     }
 
     #[inline]
-    pub fn display(&self, config: DisplayConfig) -> Result<Display, Error> {
+    pub fn display(&self, config: DisplayConfig) -> Result<Display<'_>, Error> {
         Ok(Display {
             entity: self,
             config,
@@ -203,7 +204,7 @@ struct ColorDisplay {
     color: u32,
 }
 impl std::fmt::Display for ColorDisplay {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let space = self.space_delim;
         let zero = match self.space_delim.is_empty() {
             true => "",
@@ -225,25 +226,25 @@ impl std::fmt::Display for ColorDisplay {
                 self.color & 0x0000FF
             )),
             PaletteFormat::RGBFloat => {
-                let unit = match space == "" {
+                let unit = match space.is_empty() {
                     true => 100.0,
                     false => 1000.0,
                 };
                 let r = (f32::round(((self.color & 0xFF0000) >> 16) as f32 / 255.0 * unit) / unit)
                     .to_string();
-                let r = match r.len() > 1 && space == "" {
+                let r = match r.len() > 1 && space.is_empty() {
                     true => &r[1..],
                     false => &r[0..],
                 };
                 let g = (f32::round(((self.color & 0x00FF00) >> 8) as f32 / 255.0 * unit) / unit)
                     .to_string();
-                let g = match g.len() > 1 && space == "" {
+                let g = match g.len() > 1 && space.is_empty() {
                     true => &g[1..],
                     false => &g[0..],
                 };
                 let b =
                     (f32::round((self.color & 0x0000FF) as f32 / 255.0 * unit) / unit).to_string();
-                let b = match b.len() > 1 && space == "" {
+                let b = match b.len() > 1 && space.is_empty() {
                     true => &b[1..],
                     false => &b[0..],
                 };
@@ -308,8 +309,22 @@ impl From<InlineLevel> for ArrayDisplayConfig {
     }
 }
 
+fn int_type(intable: bool) -> &'static str {
+    match intable {
+        true => "int",
+        false => "uint",
+    }
+}
+
+fn int_value_suffix(intable: bool) -> &'static str {
+    match intable {
+        true => "",
+        false => "U",
+    }
+}
+
 impl<'a> Display<'a> {
-    fn fmt_palette_array(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt_palette_array(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let format = self.config.palette_format;
         let output_type = format.element_type();
         let ArrayDisplayConfig {
@@ -337,7 +352,7 @@ impl<'a> Display<'a> {
             })?;
         f.write_fmt(format_args!("){semi_colon}{return_delim}{return_delim}"))
     }
-    fn fmt_non_inline_palette(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt_non_inline_palette(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let output_type = self.config.palette_format.element_type();
         f.write_fmt(format_args!("const {output_type} PALETTE[] = "))?;
         self.fmt_palette_array(f)
@@ -387,7 +402,7 @@ impl<'a> Display<'a> {
         &self,
         buffer: &[u32],
         intable: bool,
-        f: &mut Formatter,
+        f: &mut Formatter<'_>,
     ) -> std::fmt::Result {
         let ArrayDisplayConfig {
             return_delim,
@@ -395,10 +410,8 @@ impl<'a> Display<'a> {
             space_delim,
             semi_colon,
         } = self.config.inline_level.into();
-        match intable {
-            true => f.write_fmt(format_args!("int[]({return_delim}"))?,
-            false => f.write_fmt(format_args!("uint[]({return_delim}"))?,
-        }
+        let int_type = int_type(intable);
+        f.write_fmt(format_args!("{int_type}[]({return_delim}"))?;
         let format_chunk_size = match self.is_compressible() {
             true => 8,
             false => self.entity.size[0] as usize,
@@ -409,47 +422,39 @@ impl<'a> Display<'a> {
             .try_for_each(|(i, x)| {
                 f.write_fmt(format_args!("{indent_delim}"))?;
                 x.iter().enumerate().try_for_each(|(j, px)| {
-                    match intable {
-                        true => f.write_fmt(format_args!("{}", px))?,
-                        false => f.write_fmt(format_args!("{}U", px))?,
-                    }
-                    match j + 1 == x.len() {
-                        true => match i == (buffer.len() - 1) / format_chunk_size {
-                            true => f.write_fmt(format_args!("{return_delim}")),
-                            false => f.write_fmt(format_args!(",{return_delim}")),
-                        },
-                        false => f.write_fmt(format_args!(",{space_delim}")),
+                    let suffix = int_value_suffix(intable);
+                    f.write_fmt(format_args!("{px}{suffix}"))?;
+                    let row_end = j + 1 == x.len();
+                    let column_end = i == (buffer.len() - 1) / format_chunk_size;
+                    match (row_end, column_end) {
+                        (true, true) => f.write_fmt(format_args!("{return_delim}")),
+                        (true, false) => f.write_fmt(format_args!(",{return_delim}")),
+                        (false, _) => f.write_fmt(format_args!(",{space_delim}")),
                     }
                 })?;
                 Ok(())
             })?;
         f.write_fmt(format_args!("){semi_colon}{return_delim}{return_delim}"))
     }
-    fn fmt_non_inline_buffer(&self, f: &mut Formatter) -> Result<bool, std::fmt::Error> {
+    fn fmt_non_inline_buffer(&self, f: &mut Formatter<'_>) -> Result<bool, std::fmt::Error> {
         let (buffer, intable) = self.compressed_buffer();
         if self.config.inline_level == InlineLevel::None {
-            f.write_fmt(format_args!(
-                "const int WIDTH = {width}, HEIGHT = {height}",
-                width = self.entity.size[0],
-                height = self.entity.size[1],
-            ))?;
+            let [width, height] = self.entity.size;
+            f.write_fmt(format_args!("const int WIDTH = {width}, HEIGHT = {height}",))?;
             match self.is_compressible() {
                 true => {
-                    let bit_shift = self.entity.necessary_bit_shift();
-                    let chunk_size = 32 / bit_shift;
+                    let chunk_size = 32 / self.entity.necessary_bit_shift();
                     f.write_fmt(format_args!(", CHUNKS_IN_U32 = {chunk_size};\n"))?
                 }
                 false => f.write_str(";\n")?,
             }
         }
-        match intable {
-            true => f.write_str("const int BUFFER[] = ")?,
-            false => f.write_str("const uint BUFFER[] = ")?,
-        }
+        let int_type = int_type(intable);
+        f.write_fmt(format_args!("const {int_type} BUFFER[] = "))?;
         self.fmt_buffer_array(&buffer, intable, f)?;
         Ok(intable)
     }
-    fn fmt_get_color(&self, intable: bool, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt_get_color(&self, intable: bool, f: &mut Formatter<'_>) -> std::fmt::Result {
         let bit_shift = self.entity.necessary_bit_shift();
         let same_size = self.entity.size[0] as usize == 32 / bit_shift;
         let element_type = self.config.palette_format.element_type();
@@ -484,11 +489,10 @@ impl<'a> Display<'a> {
                     f.write_str("    int bitShift = 32 / CHUNKS_IN_U32;\n")?;
                 }
             }
-            let rem_coef = match (inline_none, intable) {
-                (true, true) => "(1 << bitShift) - 1".to_string(),
-                (true, false) => "(1u << bitShift) - 1u".to_string(),
-                (false, true) => format!("{}", (1 << bit_shift) - 1),
-                (false, false) => format!("{}U", (1 << bit_shift) - 1),
+            let suffix = int_value_suffix(intable);
+            let rem_coef = match inline_none {
+                true => format!("(1{suffix} << bitShift) - 1{suffix}"),
+                false => format!("{}{suffix}", (1 << bit_shift) - 1),
             };
             let semi_chunks_in_u32 = match inline_none {
                 true => "CHUNKS_IN_U32 - 1".to_string(),
@@ -511,7 +515,7 @@ impl<'a> Display<'a> {
         }
         f.write_str("}\n\n")
     }
-    fn fmt_main(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt_main(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let (width, height, float_height, half_vec) =
             match self.config.inline_level == InlineLevel::None {
                 true => (
@@ -543,7 +547,7 @@ impl<'a> Display<'a> {
 }}\n"
         ))
     }
-    fn fmt_geekest(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt_geekest(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let [width, height] = self.entity.size;
         let size_vec = match width == height {
             true => format!("{}.", width),
@@ -553,10 +557,8 @@ impl<'a> Display<'a> {
         let bit_shift = self.entity.necessary_bit_shift();
         let chunks_in_u32 = 32 / bit_shift;
         let rem_coef = (1 << bit_shift) - 1;
-        if self.is_compressible() {
-            if width != chunks_in_u32 as u32 {
-                f.write_fmt(format_args!("int i=u.y*{width}+u.x;"))?;
-            }
+        if self.is_compressible() && width != chunks_in_u32 as u32 {
+            f.write_fmt(format_args!("int i=u.y*{width}+u.x;"))?;
         }
         f.write_str("o.xyz=")?;
         self.fmt_palette_array(f)?;
@@ -580,7 +582,7 @@ const INT_TO_RGB: &str = "vec3 int2rgb(int color) {
 }\n\n";
 
 impl<'a> std::fmt::Display for Display<'a> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.config.inline_level == InlineLevel::Geekest {
             self.fmt_geekest(f)
         } else {
