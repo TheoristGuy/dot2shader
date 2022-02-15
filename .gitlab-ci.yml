@@ -1,9 +1,6 @@
-stages:
-  - pages
-
 pages:
   image: drydockapp/wasm-pack
-  stage: pages
+  stage: deploy
   script:
     - export RUSTFLAGS=--cfg=web_sys_unstable_apis
     - mkdir -p public
