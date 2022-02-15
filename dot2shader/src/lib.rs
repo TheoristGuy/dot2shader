@@ -136,9 +136,10 @@ impl PixelArt {
         let buffer: Vec<_> = v
             .chunks(4)
             .map(|e| {
-                let x = u32::from_be_bytes([0, e[0], e[1], e[2]]);
                 let idx = col2idx.len();
-                *col2idx.entry(x).or_insert(idx as u32)
+                *col2idx
+                    .entry(u32::from_be_bytes([0, e[0], e[1], e[2]]))
+                    .or_insert(idx as u32)
             })
             .collect();
         let mut palette = vec![0; col2idx.len()];
@@ -442,10 +443,8 @@ impl<'a> Display<'a> {
     fn fmt_get_color(&self, intable: bool, f: &mut Formatter) -> std::fmt::Result {
         let bit_shift = self.entity.necessary_bit_shift();
         let same_size = self.entity.size[0] as usize == 32 / bit_shift;
-        f.write_fmt(format_args!(
-            "{} getColor(in ivec2 u) {{\n",
-            self.config.palette_format.element_type(),
-        ))?;
+        let element_type = self.config.palette_format.element_type();
+        f.write_fmt(format_args!("{element_type} getColor(in ivec2 u) {{\n",))?;
         let inline_none = self.config.inline_level == InlineLevel::None;
         let width = match inline_none {
             true => "WIDTH".to_string(),

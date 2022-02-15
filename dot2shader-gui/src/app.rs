@@ -11,6 +11,7 @@ pub struct Dot2ShaderApp {
     previous_config: DisplayConfig,
 }
 
+/// file io
 impl Dot2ShaderApp {
     #[cfg(not(target_arch = "wasm32"))]
     fn read_file(&self, open_dialog: bool) {
@@ -137,6 +138,117 @@ impl Dot2ShaderApp {
     }
 }
 
+/// panel setting
+impl Dot2ShaderApp {
+    fn is_geekest_mode(&self) -> bool {
+        self.config.inline_level == InlineLevel::Geekest
+    }
+    fn inline_level_setting(&mut self, ui: &mut egui::Ui) {
+        use InlineLevel::*;
+        let inline_level = &mut self.config.inline_level;
+        ui.label("Inline Level");
+        let mut set_radio_value = move |val, msg| ui.radio_value(inline_level, val, msg);
+        set_radio_value(None, "no magic number, for Shadertoy");
+        set_radio_value(InlineVariable, "inline constant variables, for Shadertoy");
+        set_radio_value(Geekest, "crazy optimization, for twigl geekest");
+    }
+    fn pallet_color_format_setting(&mut self, ui: &mut egui::Ui) {
+        use PaletteFormat::*;
+        let geekest = self.is_geekest_mode();
+        let palette_format = &mut self.config.palette_format;
+        if geekest {
+            *palette_format = RGBFloat;
+        }
+        ui.label("Palette Color Format");
+        let mut add_palette_radio = |format, string| {
+            let button = egui::RadioButton::new(*palette_format == format, string);
+            if ui.add_enabled(!geekest, button).clicked() {
+                *palette_format = format;
+            }
+        };
+        add_palette_radio(IntegerDecimal, "single decimal integer");
+        add_palette_radio(IntegerHexadecimal, "single hexadecimal integer");
+        add_palette_radio(RGBDecimal, "vec3, specified by decimal integers");
+        add_palette_radio(RGBHexadecimal, "vec3, specified by hexadecimal integers");
+        ui.radio_value(palette_format, RGBFloat, "vec3, specified by floats");
+    }
+    fn buffer_format_setting(&mut self, ui: &mut egui::Ui) {
+        let geekest = self.is_geekest_mode();
+        let buffer_format = &mut self.config.buffer_format;
+        if geekest {
+            buffer_format.force_to_raw = false;
+        }
+        ui.label("Buffer Optimization");
+        ui.checkbox(
+            &mut buffer_format.reverse_rows,
+            "Turn the picture upside down.",
+        );
+        ui.checkbox(
+            &mut buffer_format.reverse_each_chunk,
+            "Invert bytes of each chunk.",
+        );
+        let check_force_to_raw = egui::Checkbox::new(
+            &mut buffer_format.force_to_raw,
+            "Force not to compress the buffer.",
+        );
+        ui.add_enabled(!geekest, check_force_to_raw);
+    }
+    fn setting_change_string_update(&mut self) {
+        if self.previous_config != self.config {
+            *self.message.lock().unwrap() = String::new();
+            let string_update_closure = self.string_update_closure();
+            #[cfg(not(target_arch = "wasm32"))]
+            std::thread::spawn(string_update_closure);
+            #[cfg(target_arch = "wasm32")]
+            wasm_bindgen_futures::spawn_local(async move {
+                string_update_closure();
+            });
+            self.previous_config = self.config;
+        }
+    }
+    fn file_open_button(&mut self, ui: &mut egui::Ui) {
+        ui.label("");
+        let open_dialog = ui.button("File Open...").clicked();
+        self.read_file(open_dialog);
+    }
+    fn error_message_label(&mut self, ui: &mut egui::Ui) {
+        let message = self.message.lock().unwrap().clone();
+        ui.add(egui::Label::new(
+            egui::RichText::new(message).color(egui::Color32::from_rgb(255, 0, 0)),
+        ));
+    }
+    fn bottom_credit(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            ui.horizontal(|ui| {
+                ui.label("GitHub repo: coming coon...");
+            });
+            ui.horizontal(|ui| {
+                ui.label("created by ");
+                ui.hyperlink_to("@IWBTShyGuy", "https://twitter.com/IWBTShyGuy");
+            });
+        });
+    }
+    fn side_panel_rayout(&mut self, ui: &mut egui::Ui) {
+        let loaded = self.pixel_art.lock().unwrap().is_some();
+        if loaded {
+            ui.heading("Configure");
+            ui.separator();
+            self.inline_level_setting(ui);
+            ui.separator();
+            self.pallet_color_format_setting(ui);
+            ui.separator();
+            self.buffer_format_setting(ui);
+            self.setting_change_string_update();
+        }
+        ui.separator();
+        self.file_open_button(ui);
+        self.error_message_label(ui);
+        egui::warn_if_debug_build(ui);
+        self.bottom_credit(ui);
+    }
+}
+
 impl epi::App for Dot2ShaderApp {
     fn name(&self) -> &str {
         "dot2shader"
@@ -158,122 +270,7 @@ impl epi::App for Dot2ShaderApp {
         egui::SidePanel::left("side_panel")
             .default_width(290.0)
             .resizable(false)
-            .show(ctx, |ui| {
-                let loaded = self.pixel_art.lock().unwrap().is_some();
-                let config = &mut self.config;
-                if loaded {
-                    ui.heading("Configure");
-
-                    ui.separator();
-                    ui.label("Inline Level");
-                    ui.radio_value(
-                        &mut config.inline_level,
-                        InlineLevel::None,
-                        "no magic number, for Shadertoy",
-                    );
-                    ui.radio_value(
-                        &mut config.inline_level,
-                        InlineLevel::InlineVariable,
-                        "inline constant variables, for Shadertoy",
-                    );
-                    ui.radio_value(
-                        &mut config.inline_level,
-                        InlineLevel::Geekest,
-                        "crazy optimization, for twigl geekest",
-                    );
-
-                    let geekest = config.inline_level == InlineLevel::Geekest;
-                    if geekest {
-                        config.palette_format = PaletteFormat::RGBFloat;
-                        config.buffer_format.force_to_raw = false;
-                    }
-
-                    ui.separator();
-                    ui.label("Palette Color format");
-                    let mut add_palette_radio = |format, string| {
-                        if ui
-                            .add_enabled(
-                                !geekest,
-                                egui::RadioButton::new(config.palette_format == format, string),
-                            )
-                            .clicked()
-                        {
-                            config.palette_format = format;
-                        }
-                    };
-                    add_palette_radio(PaletteFormat::IntegerDecimal, "single decimal integer");
-                    add_palette_radio(
-                        PaletteFormat::IntegerHexadecimal,
-                        "single hexadecimal integer",
-                    );
-                    add_palette_radio(
-                        PaletteFormat::RGBDecimal,
-                        "vec3, specified by decimal integers",
-                    );
-                    add_palette_radio(
-                        PaletteFormat::RGBHexadecimal,
-                        "vec3, specified by hexadecimal integers",
-                    );
-                    ui.radio_value(
-                        &mut config.palette_format,
-                        PaletteFormat::RGBFloat,
-                        "vec3, specified by floats",
-                    );
-
-                    ui.separator();
-                    ui.label("Buffer Optimization");
-                    ui.add(egui::Checkbox::new(
-                        &mut config.buffer_format.reverse_rows,
-                        "Turn the picture upside down.",
-                    ));
-                    ui.add(egui::Checkbox::new(
-                        &mut config.buffer_format.reverse_each_chunk,
-                        "Invert bytes of each chunk.",
-                    ));
-                    ui.add_enabled(
-                        !geekest,
-                        egui::Checkbox::new(
-                            &mut config.buffer_format.force_to_raw,
-                            "Force not to compress the buffer.",
-                        ),
-                    );
-
-                    if self.previous_config != self.config {
-                        *self.message.lock().unwrap() = String::new();
-                        #[cfg(not(target_arch = "wasm32"))]
-                        std::thread::spawn(self.string_update_closure());
-                        #[cfg(target_arch = "wasm32")]
-                        {
-                            let string_update_closure = self.string_update_closure();
-                            wasm_bindgen_futures::spawn_local(async move {
-                                string_update_closure();
-                            });
-                        }
-                        self.previous_config = self.config;
-                    }
-                }
-                ui.separator();
-                ui.label("");
-                let open_dialog = ui.button("file open").clicked();
-                self.read_file(open_dialog);
-                let message = self.message.lock().unwrap().clone();
-                ui.add(egui::Label::new(
-                    egui::RichText::new(message).color(egui::Color32::from_rgb(255, 0, 0)),
-                ));
-
-                egui::warn_if_debug_build(ui);
-
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.horizontal(|ui| {
-                        ui.label("GitHub repo: coming coon...");
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("created by ");
-                        ui.hyperlink_to("@IWBTShyGuy", "https://twitter.com/IWBTShyGuy");
-                    });
-                });
-            });
+            .show(ctx, |ui| self.side_panel_rayout(ui));
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut string = self.string.lock().unwrap().clone();
