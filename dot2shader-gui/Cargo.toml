@@ -14,6 +14,7 @@ dot2shader = { path = "../dot2shader" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 native-dialog = "0.6.3"
+image = { version = "0.24.0", default-features = false, features = ["ico"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3.56"
