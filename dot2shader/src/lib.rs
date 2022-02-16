@@ -458,6 +458,7 @@ impl<'a> Display<'a> {
         let bit_shift = self.entity.necessary_bit_shift();
         let same_size = self.entity.size[0] as usize == 32 / bit_shift;
         let element_type = self.config.palette_format.element_type();
+        let reverse_rows = self.config.buffer_format.reverse_rows;
         f.write_fmt(format_args!("{element_type} getColor(in ivec2 u) {{\n",))?;
         let inline_none = self.config.inline_level == InlineLevel::None;
         let width = match inline_none {
@@ -469,7 +470,7 @@ impl<'a> Display<'a> {
             false => (self.entity.size[1] - 1).to_string(),
         };
         if !same_size || inline_none || !self.is_compressible() {
-            match self.config.buffer_format.reverse_rows {
+            match reverse_rows {
                 true => f.write_fmt(format_args!("    int idx = u.y * {width} + u.x;\n"))?,
                 false => f.write_fmt(format_args!(
                     "    int idx = ({semi_height} - u.y) * {width} + u.x;\n"
@@ -490,6 +491,10 @@ impl<'a> Display<'a> {
                 }
             }
             let suffix = int_value_suffix(intable);
+            let uy = match !same_size || inline_none || !self.is_compressible() || reverse_rows {
+                true => "u.y".to_string(),
+                false => format!("{semi_height} - u.y"),
+            };
             let rem_coef = match inline_none {
                 true => format!("(1{suffix} << bitShift) - 1{suffix}"),
                 false => format!("{}{suffix}", (1 << bit_shift) - 1),
@@ -504,10 +509,10 @@ impl<'a> Display<'a> {
             };
             match self.config.buffer_format.reverse_each_chunk {
                 true => f.write_fmt(format_args!(
-                    "    return PALETTE[BUFFER[u.y] >> u.x * {bit_shift} & {rem_coef}];\n",
+                    "    return PALETTE[BUFFER[{uy}] >> u.x * {bit_shift} & {rem_coef}];\n",
                 ))?,
                 false => f.write_fmt(format_args!(
-                    "    return PALETTE[BUFFER[u.y] >> ({semi_chunks_in_u32} - u.x) * {bit_shift} & {rem_coef}];\n",
+                    "    return PALETTE[BUFFER[{uy}] >> ({semi_chunks_in_u32} - u.x) * {bit_shift} & {rem_coef}];\n",
                 ))?,
             }
         } else {
