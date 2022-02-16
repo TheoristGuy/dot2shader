@@ -569,12 +569,13 @@ impl<'a> Display<'a> {
         self.fmt_palette_array(f)?;
         f.write_str("[")?;
         let (buffer, intable) = self.compressed_buffer();
+        let suffix = int_value_suffix(intable);
         self.fmt_buffer_array(&buffer, intable, f)?;
         match (self.is_compressible(), width == chunks_in_u32 as u32) {
             (true, false) => f.write_fmt(format_args!(
-                "[i/{chunks_in_u32}]>>i*{bit_shift}&{rem_coef}"
+                "[i/{chunks_in_u32}]>>i*{bit_shift}&{rem_coef}{suffix}"
             ))?,
-            (true, true) => f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}"))?,
+            (true, true) => f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}{suffix}"))?,
             (false, _) => f.write_str("[u.y*{width}+u.x]")?,
         }
         f.write_str("];")?;
