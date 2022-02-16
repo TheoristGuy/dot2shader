@@ -18,10 +18,10 @@ pub struct PixelArt {
 pub enum Error {
     #[error("{0}")]
     ImageError(image::ImageError),
-    #[error("The length of palettes is longer than 16.")]
-    PaletteLengthOver16,
     #[error("Supported image format is PNG, BMP, and GIF.")]
     UnsupportedImageFormat,
+    #[error("Other configs do not meet the requirement of Geekest.")]
+    NotMeetGeekest,
 }
 
 impl From<image::ImageError> for Error {
@@ -94,8 +94,11 @@ pub enum InlineLevel {
     None,
     /// The width and height of the image is inlined, and each function is optimized.
     InlineVariable,
-    /// Outputs code for Geekest mode. Everything is inlined, there are no line breaks or spaces. Only RGBFloat palette format is supported.
-    /// If you copy and paste it as is, it will not work with Shadertoy.
+    /// Outputs code for twigl/geekest. Everything is inlined, there are no line breaks or spaces.
+    ///
+    /// This inline level requires:
+    /// - pallet format is `PaletteFormat::RGBFloat`
+    /// - `BufferFormat::force_to_raw == false`
     Geekest,
 }
 
@@ -175,10 +178,17 @@ impl PixelArt {
 
     #[inline]
     pub fn display(&self, config: DisplayConfig) -> Result<Display<'_>, Error> {
-        Ok(Display {
-            entity: self,
-            config,
-        })
+        if config.inline_level == InlineLevel::Geekest
+            && (config.palette_format != PaletteFormat::RGBFloat
+                || config.buffer_format.force_to_raw)
+        {
+            Err(Error::NotMeetGeekest)
+        } else {
+            Ok(Display {
+                entity: self,
+                config,
+            })
+        }
     }
 
     /// necessary bit shift for represent pixel
@@ -503,18 +513,17 @@ impl<'a> Display<'a> {
                 true => "CHUNKS_IN_U32 - 1".to_string(),
                 false => (32 / bit_shift - 1).to_string(),
             };
+            let ux = match self.config.buffer_format.reverse_each_chunk {
+                true => "u.x".to_string(),
+                false => format!("({semi_chunks_in_u32} - u.x)"),
+            };
             let bit_shift = match inline_none {
                 true => format!("32 / {chunks_in_u32}"),
                 false => bit_shift.to_string(),
             };
-            match self.config.buffer_format.reverse_each_chunk {
-                true => f.write_fmt(format_args!(
-                    "    return PALETTE[BUFFER[{uy}] >> u.x * {bit_shift} & {rem_coef}];\n",
-                ))?,
-                false => f.write_fmt(format_args!(
-                    "    return PALETTE[BUFFER[{uy}] >> ({semi_chunks_in_u32} - u.x) * {bit_shift} & {rem_coef}];\n",
-                ))?,
-            }
+            f.write_fmt(format_args!(
+                "    return PALETTE[BUFFER[{uy}] >> {ux} * {bit_shift} & {rem_coef}];\n",
+            ))?;
         } else {
             f.write_str("    return PALETTE[BUFFER[idx]];\n")?;
         }
@@ -562,8 +571,16 @@ impl<'a> Display<'a> {
         let bit_shift = self.entity.necessary_bit_shift();
         let chunks_in_u32 = 32 / bit_shift;
         let rem_coef = (1 << bit_shift) - 1;
+        let reverse_rows = match self.config.buffer_format.reverse_rows {
+            true => String::new(),
+            false => format!("{semi_height}-", semi_height = height - 1),
+        };
         if self.is_compressible() && width != chunks_in_u32 as u32 {
-            f.write_fmt(format_args!("int i=u.y*{width}+u.x;"))?;
+            let uy = match self.config.buffer_format.reverse_rows {
+                true => "u.y".to_string(),
+                false => format!("({reverse_rows}u.y)"),
+            };
+            f.write_fmt(format_args!("int i={uy}*{width}+u.x;"))?;
         }
         f.write_str("o.xyz=")?;
         self.fmt_palette_array(f)?;
@@ -571,14 +588,26 @@ impl<'a> Display<'a> {
         let (buffer, intable) = self.compressed_buffer();
         let suffix = int_value_suffix(intable);
         self.fmt_buffer_array(&buffer, intable, f)?;
-        match (self.is_compressible(), width == chunks_in_u32 as u32) {
-            (true, false) => f.write_fmt(format_args!(
-                "[i/{chunks_in_u32}]>>i*{bit_shift}&{rem_coef}{suffix}"
-            ))?,
-            (true, true) => {
-                f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}{suffix}"))?
-            }
-            (false, _) => f.write_str("[u.y*{width}+u.x]")?,
+        if self.is_compressible() {
+            let same_size = width == chunks_in_u32 as u32;
+            let in_brace = match same_size {
+                true => format!("{reverse_rows}u.y"),
+                false => format!("i/{chunks_in_u32}"),
+            };
+            let shift_size = match same_size {
+                true => "u.x",
+                false => "i",
+            };
+            let shift_size = match self.config.buffer_format.reverse_each_chunk {
+                true => shift_size.to_string(),
+                false => format!(
+                    "({semi_chunks_in_u32}-{shift_size})",
+                    semi_chunks_in_u32 = 32 / bit_shift - 1
+                ),
+            };
+            f.write_fmt(format_args!(
+                "[{in_brace}]>>{shift_size}*{bit_shift}&{rem_coef}{suffix}"
+            ))?;
         }
         f.write_str("];")?;
         Ok(())
