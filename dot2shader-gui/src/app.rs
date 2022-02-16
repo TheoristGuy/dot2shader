@@ -1,3 +1,4 @@
+use crate::{util, util::FileDialogReader};
 use dot2shader::*;
 use eframe::{egui, epi};
 use std::sync::{Arc, Mutex};
@@ -8,135 +9,8 @@ pub struct Dot2ShaderApp {
     string: Arc<Mutex<String>>,
     message: Arc<Mutex<String>>,
     config: DisplayConfig,
+    file_reader: Option<FileDialogReader>,
     previous_config: DisplayConfig,
-}
-
-/// file io
-impl Dot2ShaderApp {
-    #[cfg(not(target_arch = "wasm32"))]
-    fn read_file(&self, open_dialog: bool) {
-        if open_dialog {
-            let message = Arc::clone(&self.message);
-            let path = native_dialog::FileDialog::new()
-                .add_filter("pixel dot files", &["png", "bmp", "gif"])
-                .show_open_single_file()
-                .unwrap_or_else(|e| {
-                    *message.lock().unwrap() = e.to_string();
-                    None
-                });
-            let pixel_art_update_closure = self.pixel_art_update_closure();
-            std::thread::spawn(move || {
-                pixel_art_update_closure(path.and_then(|path| {
-                    std::fs::read(path)
-                        .map_err(|e| {
-                            *message.lock().unwrap() = e.to_string();
-                        })
-                        .ok()
-                }));
-            });
-        }
-    }
-    #[cfg(target_arch = "wasm32")]
-    fn read_file(&self, open_dialog: bool) -> Option<()> {
-        use eframe::wasm_bindgen::{prelude::*, JsCast};
-        let doc = web_sys::window()
-            .and_then(|win| win.document())
-            .expect("failed to init document");
-        let input =
-            web_sys::HtmlInputElement::from(JsValue::from(doc.get_element_by_id("file-input")));
-        if open_dialog {
-            input.click();
-        }
-        if let Some(file) = input.files().and_then(|files| files.get(0)) {
-            web_sys::console::log_1(&JsValue::from(&file.name()));
-            let message = Arc::clone(&self.message);
-            let reader = web_sys::FileReader::new()
-                .map_err(|e| {
-                    *message.lock().unwrap() =
-                        format!("cannot initialize file reader. JsValue: {:?}", e)
-                })
-                .ok()?;
-            reader
-                .read_as_array_buffer(&file)
-                .map_err(|e| {
-                    *message.lock().unwrap() =
-                        format!("something wrong for read file. JsValue: {:?}", e)
-                })
-                .ok()?;
-            let clone_reader = reader.clone();
-            let clone_message = Arc::clone(&message);
-            let pixel_art_update_closure = self.pixel_art_update_closure();
-            let closure = Closure::wrap(Box::new(move || {
-                pixel_art_update_closure(
-                    clone_reader
-                        .result()
-                        .map(|jsvalue| js_sys::Uint8Array::new(&jsvalue).to_vec())
-                        .map_err(|e| {
-                            *clone_message.lock().unwrap() =
-                                format!("something wrong for read result. JsValue: {:?}", e);
-                            e
-                        })
-                        .ok(),
-                );
-                Ok(())
-            }) as Box<dyn FnMut() -> Result<(), JsValue>>);
-            reader.set_onload(Some(closure.into_js_value().unchecked_ref()));
-        }
-        Some(())
-    }
-    fn string_update_closure(&self) -> impl Fn() -> Option<()> + 'static {
-        let pixel_art = Arc::clone(&self.pixel_art);
-        let string = Arc::clone(&self.string);
-        let message = Arc::clone(&self.message);
-        let config = self.config;
-        move || {
-            let pixel_art = pixel_art.lock().unwrap().clone()?;
-            let display = pixel_art
-                .display(config)
-                .map_err(|e| *message.lock().unwrap() = e.to_string())
-                .ok()?;
-            let new_string = display.to_string();
-            *string.lock().unwrap() = new_string;
-            Some(())
-        }
-    }
-    fn pixel_art_update_closure(&self) -> impl Fn(Option<Vec<u8>>) -> Option<()> + 'static {
-        let message = Arc::clone(&self.message);
-        let pixel_art = Arc::clone(&self.pixel_art);
-        let string_update_closure = self.string_update_closure();
-        move |buffer| {
-            let new_pixel_art = buffer
-                .filter(|buffer| {
-                    let short = buffer.len() < 1024 * 15;
-                    if !short {
-                        *message.lock().unwrap() = format!(
-                            "File size must be less than 15KB. file size: {}KB",
-                            buffer.len() / 1024
-                        );
-                    }
-                    short
-                })
-                .and_then(|buffer| {
-                    PixelArt::from_image(&buffer)
-                        .map_err(|e| *message.lock().unwrap() = e.to_string())
-                        .ok()
-                })
-                .filter(|pixel_art| {
-                    let palette_size_limit = pixel_art.palette().len() <= usize::pow(2, 16);
-                    if !palette_size_limit {
-                        *message.lock().unwrap() = format!(
-                            "Palette size is must be no more than {}. Palette size: {}",
-                            usize::pow(2, 16),
-                            pixel_art.palette().len()
-                        );
-                    }
-                    palette_size_limit
-                })?;
-            *message.lock().unwrap() = String::new();
-            *pixel_art.lock().unwrap() = Some(new_pixel_art);
-            string_update_closure()
-        }
-    }
 }
 
 /// panel setting
@@ -197,18 +71,24 @@ impl Dot2ShaderApp {
     fn setting_change_string_update(&mut self) {
         if self.previous_config != self.config {
             *self.message.lock().unwrap() = String::new();
-            let string_update_closure = self.string_update_closure();
-            #[cfg(not(target_arch = "wasm32"))]
-            std::thread::spawn(string_update_closure);
-            #[cfg(target_arch = "wasm32")]
-            wasm_bindgen_futures::spawn_local(async move {
-                string_update_closure();
-            });
+            util::spawn(self.string_update_closure());
             self.previous_config = self.config;
         }
     }
-    fn file_open_button(&self, ui: &mut egui::Ui) {
-        self.read_file(ui.button("File Open...").clicked());
+    fn file_open_button(&mut self, ui: &mut egui::Ui) {
+        if ui.button("File Open...").clicked() {
+            self.file_reader = FileDialogReader::start();
+        }
+        match self.file_reader.as_ref().map(FileDialogReader::result) {
+            Some(Some(Ok(result))) => {
+                let closure = self.pixel_art_update_closure();
+                util::spawn(move || closure(result));
+            }
+            Some(Some(Err(error))) => {
+                *self.message.lock().unwrap() = error;
+            }
+            _ => {}
+        }
     }
     fn copy_button(&self, ui: &mut egui::Ui) {
         if ui.button("Copy Code").clicked() {
@@ -263,6 +143,53 @@ impl Dot2ShaderApp {
         self.error_message_label(ui);
         egui::warn_if_debug_build(ui);
         self.bottom_credit(ui);
+    }
+    fn string_update_closure(&self) -> impl Fn() -> Option<()> + 'static {
+        let pixel_art = Arc::clone(&self.pixel_art);
+        let string = Arc::clone(&self.string);
+        let message = Arc::clone(&self.message);
+        let config = self.config;
+        move || {
+            let pixel_art = pixel_art.lock().unwrap().clone()?;
+            let display = pixel_art
+                .display(config)
+                .map_err(|e| *message.lock().unwrap() = e.to_string())
+                .ok()?;
+            let new_string = display.to_string();
+            *string.lock().unwrap() = new_string;
+            Some(())
+        }
+    }
+    fn pixel_art_update_closure(&self) -> impl Fn(Vec<u8>) -> Option<()> + 'static {
+        let message = Arc::clone(&self.message);
+        let pixel_art = Arc::clone(&self.pixel_art);
+        let string_update_closure = self.string_update_closure();
+        move |buffer| {
+            if buffer.len() >= 1024 * 15 {
+                *message.lock().unwrap() = format!(
+                    "File size must be less than 15KB. file size: {}KB",
+                    buffer.len() / 1024
+                );
+                return None;
+            }
+            let new_pixel_art = PixelArt::from_image(&buffer)
+                .map_err(|e| *message.lock().unwrap() = e.to_string())
+                .ok()
+                .filter(|pixel_art| {
+                    let palette_size_limit = pixel_art.palette().len() <= usize::pow(2, 16);
+                    if !palette_size_limit {
+                        *message.lock().unwrap() = format!(
+                            "Palette size is must be no more than {}. Palette size: {}",
+                            usize::pow(2, 16),
+                            pixel_art.palette().len()
+                        );
+                    }
+                    palette_size_limit
+                })?;
+            *message.lock().unwrap() = String::new();
+            *pixel_art.lock().unwrap() = Some(new_pixel_art);
+            string_update_closure()
+        }
     }
 }
 

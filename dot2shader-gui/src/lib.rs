@@ -4,6 +4,7 @@
 
 mod app;
 pub use app::Dot2ShaderApp;
+mod util;
 
 // ----------------------------------------------------------------------------
 // When compiling for web:
