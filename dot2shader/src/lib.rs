@@ -575,7 +575,9 @@ impl<'a> Display<'a> {
             (true, false) => f.write_fmt(format_args!(
                 "[i/{chunks_in_u32}]>>i*{bit_shift}&{rem_coef}{suffix}"
             ))?,
-            (true, true) => f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}{suffix}"))?,
+            (true, true) => {
+                f.write_fmt(format_args!("[u.y]>>u.x*{bit_shift}&{rem_coef}{suffix}"))?
+            }
             (false, _) => f.write_str("[u.y*{width}+u.x]")?,
         }
         f.write_str("];")?;
