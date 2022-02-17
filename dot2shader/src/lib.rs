@@ -582,7 +582,7 @@ impl<'a> Display<'a> {
             };
             f.write_fmt(format_args!("int i={uy}*{width}+u.x;"))?;
         }
-        f.write_str("o.xyz=")?;
+        f.write_str("o .xyz=")?;
         self.fmt_palette_array(f)?;
         f.write_str("[")?;
         let (buffer, intable) = self.compressed_buffer();
