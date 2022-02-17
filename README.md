@@ -19,4 +19,3 @@ Choose "Configure" -> "Inline Level" -> "crazy optimization, for twigl geekest".
 ## Future works
 
 - Manual sorting of the color palette
-- Add more unit tests.
