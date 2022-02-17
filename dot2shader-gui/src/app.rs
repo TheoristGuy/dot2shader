@@ -113,6 +113,9 @@ impl Dot2ShaderApp {
             ui.horizontal(|ui| {
                 ui.label("created by ");
                 ui.hyperlink_to("@IWBTShyGuy", "https://twitter.com/IWBTShyGuy");
+                ui.label(" (");
+                ui.hyperlink_to("@theorist_guy", "https://twitter.com/theorist_guy");
+                ui.label(")");
             });
         });
     }
