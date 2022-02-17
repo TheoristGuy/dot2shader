@@ -210,7 +210,12 @@ fn geekest_configs() -> impl Iterator<Item = DisplayConfig> {
     })
 }
 
-fn one_render_test(display: &glium::Display, pixels: &[u8], filename: &str, iter: impl Iterator<Item = DisplayConfig>) {
+fn one_render_test(
+    display: &glium::Display,
+    pixels: &[u8],
+    filename: &str,
+    iter: impl Iterator<Item = DisplayConfig>,
+) {
     let mut previous = None;
     iter.for_each(|config| {
         let (vec, (width, height)) = render(&display, pixels, config);
